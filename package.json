@@ -1,0 +1,14 @@
+{
+  "name": "novaflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NovaFlow - AI-Powered Collaborative Workspace",
+  "scripts": {
+    "dev": "pnpm --filter \"./apps/*\" run dev",
+    "build": "pnpm --filter \"./apps/*\" run build"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

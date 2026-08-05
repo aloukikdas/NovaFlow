@@ -1,8 +1,10 @@
-import { Body, Controller, Post, Res} from '@nestjs/common';
+import { Body, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { CurrentUser } from './decorators/current-user.decorator';
 
 @Controller('auth') // Sets route to /api/v1/auth
 export class AuthController {
@@ -39,5 +41,25 @@ export class AuthController {
       success: true,
       data: user,
     };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async getProfile(@CurrentUser() user: any) {
+    const profile = await this.authService.getProfile(user.sub);
+    return { success: true, data: profile };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  async logout(
+    @CurrentUser() user: any,
+    @Res({ passthrough: true }) res: Response
+  ) {
+    await this.authService.logout(user.sub);
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+
+    return { success: true, message: 'Logged out successfully' };
   }
 }

@@ -91,4 +91,22 @@ export class AuthService {
       refreshToken,
     };
   }
+
+  async getProfile(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User no longer exists');
+    }
+    const { password, ...userWithoutPassword } = user;
+    return userWithoutPassword;
+  }
+
+  async logout(userId: string) {
+    // For now, we delete all active sessions for this user (Logout All Devices)
+    // Later we can target specific sessions if needed.
+    await this.prisma.session.deleteMany({
+      where: { userId },
+    });
+    return { success: true };
+  }
 }

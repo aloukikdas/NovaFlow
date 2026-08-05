@@ -1,6 +1,8 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Res} from '@nestjs/common';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 
 @Controller('auth') // Sets route to /api/v1/auth
 export class AuthController {
@@ -9,5 +11,33 @@ export class AuthController {
   @Post('register')
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
+  }
+
+  @Post('login')
+  async login(
+    @Body() loginDto: LoginDto, 
+    @Res({ passthrough: true }) res: Response
+  ) {
+    const { user, accessToken, refreshToken } = await this.authService.login(loginDto);
+
+    // Set HTTP-Only cookies
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true, // Prevents JavaScript from reading the cookie (XSS protection)
+      secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return {
+      success: true,
+      data: user,
+    };
   }
 }

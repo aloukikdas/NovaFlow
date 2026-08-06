@@ -34,4 +34,41 @@ export class WorkspacesService {
       return workspace;
     });
   }
+
+  async getUserWorkspaces(userId: string) {
+    return this.prisma.workspace.findMany({
+      where: {
+        members: {
+          some: {
+            userId: userId,
+          },
+        },
+      },
+      include: {
+        members: {
+          where: { userId },
+          select: { role: true }, 
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getWorkspaceById(workspaceId: string) {
+    return this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      include: {
+        members: {
+          select: {
+            id: true,
+            role: true,
+            joinedAt: true,
+            user: { 
+              select: { id: true, name: true, email: true } 
+            },
+          },
+        },
+      },
+    });
+  }
 }

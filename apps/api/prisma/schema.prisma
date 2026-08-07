@@ -14,6 +14,8 @@ model User {
   sessions  Session[]
   workspaceMembers WorkspaceMember[]
   ownedProjects    Project[]
+  createdTasks     Task[]            @relation("TaskCreator")
+  assignedTasks    Task[]            @relation("TaskAssignee")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -46,6 +48,7 @@ model Workspace {
   description String?
   members     WorkspaceMember[]
   projects    Project[]
+  tasks       Task[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
@@ -77,9 +80,51 @@ model Project {
   
   ownerId     String
   owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-
+  tasks       Task[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@map("projects")
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Task {
+  id          String       @id @default(uuid())
+  title       String
+  description String?
+  
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  workspaceId String
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  creatorId   String
+  creator     User         @relation("TaskCreator", fields: [creatorId], references: [id])
+
+  assigneeId  String?
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("tasks")
 }

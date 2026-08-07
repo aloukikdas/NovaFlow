@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Param, Post, UseGuards } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { UpdateTaskDto } from './dto/update-task.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WorkspaceMemberGuard } from '../workspaces/guards/workspace-member.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -30,5 +31,14 @@ export class TasksController {
   async findAll(@Param('projectId') projectId: string) {
     const tasks = await this.tasksService.findByProject(projectId);
     return { success: true, data: tasks };
+  }
+
+  @Patch(':taskId')
+  async update(
+    @Param('taskId') taskId: string,
+    @Body() updateTaskDto: UpdateTaskDto,
+  ) {
+    const task = await this.tasksService.update(taskId, updateTaskDto);
+    return { success: true, data: task };
   }
 }

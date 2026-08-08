@@ -23,10 +23,7 @@ export default function LoginPage() {
       });
 
       if (response.success) {
-        alert(`Welcome back, ${response.data.name}!`);
-        // We will redirect to a dashboard later, for now just clear the form
-        setEmail("");
-        setPassword("");
+        router.push("/dashboard");
       }
     } catch (err: any) {
       setError(err.message);

@@ -16,6 +16,7 @@ model User {
   ownedProjects    Project[]
   createdTasks     Task[]            @relation("TaskCreator")
   assignedTasks    Task[]            @relation("TaskAssignee")
+  authoredComments Comment[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -122,9 +123,25 @@ model Task {
 
   assigneeId  String?
   assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
-
+  comments    Comment[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   @@map("tasks")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String   @db.Text // Use Text type for longer comments
+  
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comments")
 }

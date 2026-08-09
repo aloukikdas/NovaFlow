@@ -66,6 +66,42 @@ export default function ProjectTaskBoard({
     }
   };
 
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    setDraggedTaskId(taskId);
+    e.dataTransfer.effectAllowed = "move"; 
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = async (e: React.DragEvent, newStatus: string) => {
+    e.preventDefault();
+    if (!draggedTaskId) return;
+    const taskToUpdate = tasks.find(t => t.id === draggedTaskId);
+    if (!taskToUpdate || taskToUpdate.status === newStatus) {
+      setDraggedTaskId(null);
+      return;
+    }
+    const previousTasks = [...tasks];
+    setTasks(tasks.map(t => 
+      t.id === draggedTaskId ? { ...t, status: newStatus } : t
+    ));
+    setDraggedTaskId(null);
+    try {
+      await apiClient(`/workspaces/${workspaceId}/projects/${projectId}/tasks/${draggedTaskId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch (err: any) {
+      setTasks(previousTasks);
+      alert(`Failed to move task: ${err.message}`);
+    }
+  };
+
   const columns = [
     { id: 'BACKLOG', title: 'Backlog' },
     { id: 'TODO', title: 'To Do' },
@@ -112,7 +148,12 @@ export default function ProjectTaskBoard({
         <div className="flex gap-6 min-w-max h-full">
           
           {columns.map(col => (
-            <div key={col.id} className="w-80 bg-gray-100/80 rounded-xl p-4 flex flex-col max-h-full border border-gray-200/50">
+            <div 
+                key={col.id}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, col.id)} 
+                className="w-80 bg-gray-100/80 rounded-xl p-4 flex flex-col max-h-full border border-gray-200/50"
+            >
               
               {/* Column Header */}
               <h3 className="font-bold text-gray-700 flex justify-between items-center mb-4 shrink-0">
@@ -126,7 +167,12 @@ export default function ProjectTaskBoard({
               <div className="flex-1 overflow-y-auto space-y-3 pr-1 pb-2">
                 {tasks.filter(t => t.status === col.id).map(task => (
                   
-                  <div key={task.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all cursor-grab group">
+                  <div 
+                    key={task.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, task.id)}
+                    className={`bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all cursor-grab group ${draggedTaskId === task.id ? 'opacity-50 border-dashed' : ''}`}
+                  >
                     <div className="flex justify-between items-start mb-2">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider ${
                         task.priority === 'HIGH' ? 'bg-red-50 text-red-700 border border-red-100' :

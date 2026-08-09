@@ -102,6 +102,40 @@ export default function ProjectTaskBoard({
     }
   };
 
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [comments, setComments] = useState<any[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [isPostingComment, setIsPostingComment] = useState(false);
+  const handleOpenTask = async (task: any) => {
+    setSelectedTask(task);
+    setComments([]);
+    try {
+      const response = await apiClient(`/workspaces/${workspaceId}/projects/${projectId}/tasks/${task.id}/comments`);
+      setComments(response.data);
+    } catch (err) {
+      console.error("Failed to fetch comments", err);
+    }
+  };
+
+  const handlePostComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim() || !selectedTask) return;
+    
+    setIsPostingComment(true);
+    try {
+      const response = await apiClient(`/workspaces/${workspaceId}/projects/${projectId}/tasks/${selectedTask.id}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ content: newComment }),
+      });
+      setComments([...comments, response.data]);
+      setNewComment("");
+    } catch (err: any) {
+      alert(`Failed to post comment: ${err.message}`);
+    } finally {
+      setIsPostingComment(false);
+    }
+  };
+
   const columns = [
     { id: 'BACKLOG', title: 'Backlog' },
     { id: 'TODO', title: 'To Do' },
@@ -171,6 +205,7 @@ export default function ProjectTaskBoard({
                     key={task.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, task.id)}
+                    onClick={() => handleOpenTask(task)}
                     className={`bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all cursor-grab group ${draggedTaskId === task.id ? 'opacity-50 border-dashed' : ''}`}
                   >
                     <div className="flex justify-between items-start mb-2">
@@ -276,6 +311,95 @@ export default function ProjectTaskBoard({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {selectedTask && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full h-[80vh] flex flex-col overflow-hidden border border-gray-100">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-start bg-gray-50/50 shrink-0">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider bg-indigo-50 text-indigo-700">
+                    {selectedTask.status.replace("_", " ")}
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider bg-gray-100 text-gray-700">
+                    {selectedTask.priority}
+                  </span>
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mt-2">{selectedTask.title}</h2>
+              </div>
+              <button 
+                onClick={() => setSelectedTask(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors bg-white rounded-full p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Content Area */}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8 bg-white">
+              
+              {/* Task Description */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">Description</h3>
+                <div className="text-sm text-gray-700 bg-gray-50 p-4 rounded-lg border border-gray-100 whitespace-pre-wrap">
+                  {selectedTask.description || <span className="text-gray-400 italic">No description provided.</span>}
+                </div>
+              </div>
+
+              {/* Comments Section */}
+              <div className="flex-1 flex flex-col">
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Activity & Comments</h3>
+                
+                <div className="flex-1 space-y-4 mb-4">
+                  {comments.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-4">No comments yet. Start the conversation!</p>
+                  ) : (
+                    comments.map(comment => (
+                      <div key={comment.id} className="flex gap-3">
+                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0 text-sm">
+                          {comment.author?.name?.charAt(0) || '?'}
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 w-full">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm font-bold text-gray-900">{comment.author?.name}</span>
+                            <span className="text-xs text-gray-400">
+                              {new Date(comment.createdAt).toLocaleDateString()} {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.content}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Comment Input Box */}
+            <div className="p-4 border-t border-gray-100 bg-gray-50 shrink-0">
+              <form onSubmit={handlePostComment} className="flex gap-3">
+                <input
+                  type="text"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Ask a question or post an update..."
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={!newComment.trim() || isPostingComment}
+                  className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-full hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                >
+                  Send
+                </button>
+              </form>
+            </div>
+
           </div>
         </div>
       )}

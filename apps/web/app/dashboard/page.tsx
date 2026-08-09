@@ -79,7 +79,8 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {workspaces.map((ws) => (
                 <div 
-                  key={ws.id} 
+                  key={ws.id}
+                  onClick={() => router.push(`/workspaces/${ws.id}`)} 
                   className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer group"
                 >
                   <h3 className="text-lg font-bold text-gray-900 truncate group-hover:text-indigo-600 transition-colors">

@@ -49,6 +49,7 @@ model Workspace {
   description String?
   members     WorkspaceMember[]
   projects    Project[]
+  invitations WorkspaceInvitation[]
   tasks       Task[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
@@ -144,4 +145,18 @@ model Comment {
   updatedAt DateTime @updatedAt
 
   @@map("comments")
+}
+
+model WorkspaceInvitation {
+  id          String   @id @default(uuid())
+  workspaceId String
+  email       String
+  role        Role     @default(MEMBER)
+  token       String   @unique
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, email])
 }

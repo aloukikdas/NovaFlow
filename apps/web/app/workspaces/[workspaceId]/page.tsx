@@ -69,6 +69,12 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
           <div className="h-4 w-px bg-gray-300"></div>
           <h1 className="text-lg font-bold text-gray-900">{workspace.name}</h1>
         </div>
+        <button 
+          onClick={() => router.push(`/workspaces/${workspaceId}/members`)}
+          className="text-sm font-medium text-gray-600 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 px-3 py-1.5 rounded-md transition-colors border border-gray-200"
+        >
+          Team Members &rarr;
+        </button>
       </nav>
 
       {/* Main Content */}

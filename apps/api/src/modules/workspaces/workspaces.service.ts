@@ -71,4 +71,29 @@ export class WorkspacesService {
       },
     });
   }
+
+  async getMembers(workspaceId: string) {
+    return this.prisma.workspaceMember.findMany({
+      where: { workspaceId },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
+  }
+
+  async inviteUser(workspaceId: string, email: string, role: any) {
+    const existingMember = await this.prisma.workspaceMember.findFirst({
+      where: { workspaceId, user: { email } },
+    });
+    if (existingMember) throw new Error('User is already a member');
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    return this.prisma.workspaceInvitation.upsert({
+      where: {
+        workspaceId_email: { workspaceId, email },
+      },
+      update: { token, expiresAt, role },
+      create: { workspaceId, email, role, token, expiresAt },
+    });
+  }
 }

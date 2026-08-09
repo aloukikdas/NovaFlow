@@ -91,7 +91,8 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((project) => (
               <div 
-                key={project.id} 
+                key={project.id}
+                onClick={() => router.push(`/workspaces/${workspaceId}/projects/${project.id}`)}
                 className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
               >
                 <div className="flex justify-between items-start mb-4">

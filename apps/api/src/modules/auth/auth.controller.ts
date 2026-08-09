@@ -10,9 +10,10 @@ import { CurrentUser } from './decorators/current-user.decorator';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('register')
-  async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+ @Post('register')
+  async register(@Body() dto: RegisterDto) {
+    const user = await this.authService.register(dto);
+    return { success: true, data: user };
   }
 
   @Post('login')

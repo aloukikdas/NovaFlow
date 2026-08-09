@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "../../../lib/api";
+import toast from "react-hot-toast";
 
 export default function WorkspacePage({ params }: { params: Promise<{ workspaceId: string }> }) {
   const router = useRouter();
@@ -13,6 +14,30 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
   const [projects, setProjects] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreatingProject(true);
+    try {
+      const response = await apiClient(`/workspaces/${workspaceId}/projects`, {
+        method: "POST",
+        body: JSON.stringify({ name: newProjectName, description: newProjectDescription }),
+      });
+      setProjects([...projects, response.data]);
+      setIsNewProjectModalOpen(false);
+      setNewProjectName("");
+      setNewProjectDescription("");
+      toast.success("Project created successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create project");
+    } finally {
+      setIsCreatingProject(false);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -84,7 +109,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
             <h2 className="text-2xl font-extrabold text-gray-900">Projects</h2>
             <p className="text-gray-500 mt-1 text-sm">Select a project to view its tasks.</p>
           </div>
-          <button className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors">
+          <button 
+            onClick={() => setIsNewProjectModalOpen(true)}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors"
+          >
             + New Project
           </button>
         </div>
@@ -122,6 +150,49 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
           </div>
         )}
       </div>
+      {isNewProjectModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Create New Project</h2>
+              <button onClick={() => setIsNewProjectModalOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            
+            <form onSubmit={handleCreateProject} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Project Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="E.g., Mobile App Launch"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={newProjectDescription}
+                  onChange={(e) => setNewProjectDescription(e.target.value)}
+                  placeholder="What is this project about?"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                />
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setIsNewProjectModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button type="submit" disabled={isCreatingProject} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                  {isCreatingProject ? "Creating..." : "Create Project"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

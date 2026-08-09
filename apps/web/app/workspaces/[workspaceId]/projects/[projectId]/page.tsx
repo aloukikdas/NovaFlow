@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "../../../../../lib/api";
+import { io } from "socket.io-client";
 
 export default function ProjectTaskBoard({ 
   params 
@@ -39,6 +40,27 @@ export default function ProjectTaskBoard({
 
     fetchTasks();
   }, [workspaceId, projectId, router]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    
+    const socket = io("http://localhost:4000", {
+      withCredentials: true,
+    });
+    socket.on("connect", () => {
+      console.log("Connected to WebSocket");
+      socket.emit("project:join", projectId);
+    });
+    socket.on("task:updated", (updatedTask: any) => {
+      console.log("Real-time update received!", updatedTask);
+      setTasks((currentTasks) => 
+        currentTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+      );
+    });
+    return () => {
+      socket.disconnect();
+    };
+  }, [projectId]);
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -2,10 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { EventsGateway } from '../../gateways/events.gateway';
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventsGateway: EventsGateway,
+  ) {}
 
   async create(workspaceId: string, projectId: string, creatorId: string, dto: CreateTaskDto) {
     return this.prisma.task.create({
@@ -35,7 +39,7 @@ export class TasksService {
   }
 
   async update(taskId: string, dto: UpdateTaskDto) {
-    return this.prisma.task.update({
+    const updatedTask = await this.prisma.task.update({
       where: { id: taskId },
       data: {
         title: dto.title,
@@ -49,5 +53,7 @@ export class TasksService {
         assignee: { select: { id: true, name: true, email: true } },
       },
     });
+    this.eventsGateway.broadcastTaskUpdate(updatedTask.projectId, updatedTask);
+    return updatedTask;
   }
 }

@@ -8,9 +8,19 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { CommentsModule } from './modules/comments/comments.module';
+import { GatewaysModule } from './gateways/gateways.module';
 
 @Module({
-  imports: [DatabaseModule, UsersModule, AuthModule, WorkspacesModule, ProjectsModule, TasksModule, CommentsModule],
+  imports: [
+    DatabaseModule, 
+    UsersModule, 
+    AuthModule, 
+    WorkspacesModule, 
+    ProjectsModule, 
+    TasksModule, 
+    CommentsModule,
+    GatewaysModule
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

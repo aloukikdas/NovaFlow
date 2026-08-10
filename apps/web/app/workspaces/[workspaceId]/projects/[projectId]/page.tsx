@@ -15,6 +15,7 @@ export default function ProjectTaskBoard({
   const { workspaceId, projectId } = resolvedParams;
 
   const [tasks, setTasks] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
@@ -22,12 +23,20 @@ export default function ProjectTaskBoard({
   const [newTaskDescription, setNewTaskDescription] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState("MEDIUM");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newTaskAssignee, setNewTaskAssignee] = useState("");
+  const [viewMode, setViewMode] = useState<"BOARD" | "LIST">("BOARD");
+  const [filterAssignee, setFilterAssignee] = useState("");
 
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const response = await apiClient(`/workspaces/${workspaceId}/projects/${projectId}/tasks`);
-        setTasks(response.data);
+        const queryParams = filterAssignee ? `?assigneeId=${filterAssignee}` : "";
+        const [tasksRes, membersRes] = await Promise.all([
+          apiClient(`/workspaces/${workspaceId}/projects/${projectId}/tasks${queryParams}`),
+          apiClient(`/workspaces/${workspaceId}/members`)
+        ]);
+        setTasks(tasksRes.data);
+        setMembers(membersRes.data);
       } catch (err: any) {
         setError(err.message);
         if (err.message === "Unauthorized" || err.message === "Authentication token is missing") {
@@ -39,7 +48,7 @@ export default function ProjectTaskBoard({
     };
 
     fetchTasks();
-  }, [workspaceId, projectId, router]);
+  }, [workspaceId, projectId, router, filterAssignee]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -73,7 +82,8 @@ export default function ProjectTaskBoard({
           title: newTaskTitle,
           description: newTaskDescription,
           priority: newTaskPriority,
-          status: "TODO"
+          status: "TODO",
+          assigneeId: newTaskAssignee || undefined
         })
       });
       setTasks([...tasks, response.data]);
@@ -81,6 +91,7 @@ export default function ProjectTaskBoard({
       setNewTaskTitle("");
       setNewTaskDescription("");
       setNewTaskPriority("MEDIUM");
+      setNewTaskAssignee("");
     } catch (err: any) {
       alert(`Error creating task: ${err.message}`);
     } finally {
@@ -193,77 +204,141 @@ export default function ProjectTaskBoard({
         </button>
       </nav>
 
+      <div className="bg-white border-b border-gray-200 px-8 py-3 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-medium text-gray-500">Filter:</span>
+          <select 
+            value={filterAssignee}
+            onChange={(e) => setFilterAssignee(e.target.value)}
+            className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:ring-indigo-500"
+          >
+            <option value="">All Assignees</option>
+            {members.map(m => (
+              <option key={m.user.id} value={m.user.id}>{m.user.name}</option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+          <button 
+            onClick={() => setViewMode("BOARD")}
+            className={`px-3 py-1 text-xs font-bold rounded-md ${viewMode === "BOARD" ? "bg-white shadow-sm text-indigo-700" : "text-gray-500 hover:text-gray-700"}`}
+          >
+            Kanban Board
+          </button>
+          <button 
+            onClick={() => setViewMode("LIST")}
+            className={`px-3 py-1 text-xs font-bold rounded-md ${viewMode === "LIST" ? "bg-white shadow-sm text-indigo-700" : "text-gray-500 hover:text-gray-700"}`}
+          >
+            List View
+          </button>
+        </div>
+      </div>
+      
       {error && (
         <div className="bg-red-50 text-red-500 p-4 text-center shrink-0 border-b border-red-100">
           {error}
         </div>
       )}
 
-      {/* Kanban Board Area */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-8">
-        <div className="flex gap-6 min-w-max h-full">
-          
-          {columns.map(col => (
-            <div 
-                key={col.id}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, col.id)} 
-                className="w-80 bg-gray-100/80 rounded-xl p-4 flex flex-col max-h-full border border-gray-200/50"
-            >
-              
-              {/* Column Header */}
-              <h3 className="font-bold text-gray-700 flex justify-between items-center mb-4 shrink-0">
-                {col.title}
-                <span className="bg-gray-200 text-gray-600 px-2.5 py-0.5 rounded-full text-xs font-semibold">
-                  {tasks.filter(t => t.status === col.id).length}
-                </span>
-              </h3>
-              
-              {/* Tasks List */}
-              <div className="flex-1 overflow-y-auto space-y-3 pr-1 pb-2">
-                {tasks.filter(t => t.status === col.id).map(task => (
-                  
-                  <div 
-                    key={task.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, task.id)}
-                    onClick={() => handleOpenTask(task)}
-                    className={`bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all cursor-grab group ${draggedTaskId === task.id ? 'opacity-50 border-dashed' : ''}`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider ${
-                        task.priority === 'HIGH' ? 'bg-red-50 text-red-700 border border-red-100' :
-                        task.priority === 'MEDIUM' ? 'bg-orange-50 text-orange-700 border border-orange-100' :
-                        'bg-blue-50 text-blue-700 border border-blue-100'
-                      }`}>
-                        {task.priority}
-                      </span>
+      {/* Main Content Area (Ternary Operator) */}
+      {viewMode === "LIST" ? (
+        
+        <div className="flex-1 overflow-y-auto p-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500">
+                  <th className="p-4">Task Name</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4">Priority</th>
+                  <th className="p-4">Assignee</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {tasks.map(task => (
+                  <tr key={task.id} onClick={() => handleOpenTask(task)} className="hover:bg-gray-50 cursor-pointer">
+                    <td className="p-4 font-medium text-gray-900">{task.title}</td>
+                    <td className="p-4"><span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded-md">{task.status.replace('_', ' ')}</span></td>
+                    <td className="p-4"><span className="text-xs font-bold text-gray-500">{task.priority}</span></td>
+                    <td className="p-4 text-sm text-gray-600">{task.assignee?.name || 'Unassigned'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      ) : (
+
+        <div className="flex-1 overflow-x-auto overflow-y-hidden p-8">
+          <div className="flex gap-6 min-w-max h-full">
+            {columns.map(col => (
+              <div 
+                  key={col.id}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, col.id)} 
+                  className="w-80 bg-gray-100/80 rounded-xl p-4 flex flex-col max-h-full border border-gray-200/50"
+              >
+                
+                <h3 className="font-bold text-gray-700 flex justify-between items-center mb-4 shrink-0">
+                  {col.title}
+                  <span className="bg-gray-200 text-gray-600 px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                    {tasks.filter(t => t.status === col.id).length}
+                  </span>
+                </h3>
+                
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1 pb-2">
+                  {tasks.filter(t => t.status === col.id).map(task => (
+                    
+                    <div 
+                      key={task.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, task.id)}
+                      onClick={() => handleOpenTask(task)}
+                      className={`bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all cursor-grab group ${draggedTaskId === task.id ? 'opacity-50 border-dashed' : ''}`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider ${
+                          task.priority === 'HIGH' ? 'bg-red-50 text-red-700 border border-red-100' :
+                          task.priority === 'MEDIUM' ? 'bg-orange-50 text-orange-700 border border-orange-100' :
+                          'bg-blue-50 text-blue-700 border border-blue-100'
+                        }`}>
+                          {task.priority}
+                        </span>
+                        {task.assignee && (
+                        <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0 text-[10px]" title={task.assignee.name}>
+                          {task.assignee.name.charAt(0)}
+                        </div>
+                      )}
+                      </div>
+                      
+                      <h4 className="font-bold text-gray-900 leading-snug group-hover:text-indigo-600 transition-colors">
+                        {task.title}
+                      </h4>
+                      
+                      {task.description && (
+                        <p className="text-xs text-gray-500 mt-2 line-clamp-2 leading-relaxed">
+                          {task.description}
+                        </p>
+                      )}
                     </div>
                     
-                    <h4 className="font-bold text-gray-900 leading-snug group-hover:text-indigo-600 transition-colors">
-                      {task.title}
-                    </h4>
-                    
-                    {task.description && (
-                      <p className="text-xs text-gray-500 mt-2 line-clamp-2 leading-relaxed">
-                        {task.description}
-                      </p>
-                    )}
-                  </div>
+                  ))}
                   
-                ))}
-                
-                {tasks.filter(t => t.status === col.id).length === 0 && (
-                  <div className="border-2 border-dashed border-gray-200 rounded-lg h-24 flex items-center justify-center">
-                    <p className="text-xs text-gray-400 font-medium">Drop tasks here</p>
-                  </div>
-                )}
+                  {tasks.filter(t => t.status === col.id).length === 0 && (
+                    <div className="border-2 border-dashed border-gray-200 rounded-lg h-24 flex items-center justify-center">
+                      <p className="text-xs text-gray-400 font-medium">Drop tasks here</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-          
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Modals */}
       {isNewTaskModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100">
@@ -300,6 +375,22 @@ export default function ProjectTaskBoard({
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
+                <select
+                  value={newTaskAssignee}
+                  onChange={(e) => setNewTaskAssignee(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="">Unassigned</option>
+                  {members.map((member) => (
+                    <option key={member.user.id} value={member.user.id}>
+                      {member.user.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -341,7 +432,6 @@ export default function ProjectTaskBoard({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full h-[80vh] flex flex-col overflow-hidden border border-gray-100">
             
-            {/* Modal Header */}
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-start bg-gray-50/50 shrink-0">
               <div>
                 <div className="flex items-center gap-3 mb-1">
@@ -362,10 +452,8 @@ export default function ProjectTaskBoard({
               </button>
             </div>
 
-            {/* Scrollable Content Area */}
             <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8 bg-white">
               
-              {/* Task Description */}
               <div>
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">Description</h3>
                 <div className="text-sm text-gray-700 bg-gray-50 p-4 rounded-lg border border-gray-100 whitespace-pre-wrap">
@@ -373,7 +461,6 @@ export default function ProjectTaskBoard({
                 </div>
               </div>
 
-              {/* Comments Section */}
               <div className="flex-1 flex flex-col">
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Activity & Comments</h3>
                 
@@ -402,7 +489,6 @@ export default function ProjectTaskBoard({
               </div>
             </div>
 
-            {/* Comment Input Box */}
             <div className="p-4 border-t border-gray-100 bg-gray-50 shrink-0">
               <form onSubmit={handlePostComment} className="flex gap-3">
                 <input

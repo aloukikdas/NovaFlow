@@ -17,6 +17,7 @@ model User {
   createdTasks     Task[]            @relation("TaskCreator")
   assignedTasks    Task[]            @relation("TaskAssignee")
   authoredComments Comment[]
+  activities ActivityEvent[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -51,6 +52,8 @@ model Workspace {
   projects    Project[]
   invitations WorkspaceInvitation[]
   tasks       Task[]
+  labels     Label[]
+  activities  ActivityEvent[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
@@ -83,6 +86,7 @@ model Project {
   ownerId     String
   owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   tasks       Task[]
+  activities  ActivityEvent[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -125,6 +129,9 @@ model Task {
   assigneeId  String?
   assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
   comments    Comment[]
+  labels     TaskLabel[]
+  checklists ChecklistItem[]
+  activities  ActivityEvent[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -133,7 +140,7 @@ model Task {
 
 model Comment {
   id        String   @id @default(uuid())
-  content   String   @db.Text // Use Text type for longer comments
+  content   String   @db.Text
   
   taskId    String
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -159,4 +166,48 @@ model WorkspaceInvitation {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, email])
+}
+
+model Label {
+  id          String      @id @default(uuid())
+  workspaceId String
+  name        String
+  color       String
+  
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tasks       TaskLabel[]
+}
+
+model TaskLabel {
+  taskId  String
+  labelId String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  
+  @@id([taskId, labelId])
+}
+
+model ChecklistItem {
+  id        String   @id @default(uuid())
+  taskId    String
+  content   String
+  isDone    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model ActivityEvent {
+  id          String   @id @default(uuid())
+  workspaceId String
+  projectId   String
+  taskId      String?
+  actorId     String
+  action      String
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task        Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor       User      @relation(fields: [actorId], references: [id], onDelete: Cascade)
 }

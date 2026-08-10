@@ -11,8 +11,14 @@ export class TasksService {
     private readonly eventsGateway: EventsGateway,
   ) {}
 
-  async create(workspaceId: string, projectId: string, creatorId: string, dto: CreateTaskDto) {
-    return this.prisma.task.create({
+  private async logActivity(workspaceId: string, projectId: string, taskId: string, actorId: string, action: string) {
+    await this.prisma.activityEvent.create({
+      data: { workspaceId, projectId, taskId, actorId, action }
+    });
+  }
+
+  async create(workspaceId: string, projectId: string, actorId: string, dto: CreateTaskDto) {
+    const task = await this.prisma.task.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -21,24 +27,46 @@ export class TasksService {
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         workspaceId,
         projectId,
-        creatorId,
+        creatorId: actorId,
         assigneeId: dto.assigneeId,
       },
-    });
-  }
-
-  async findByProject(projectId: string) {
-    return this.prisma.task.findMany({
-      where: { projectId },
-      orderBy: { createdAt: 'desc' },
       include: {
-        assignee: { select: { id: true, name: true } },
-        creator: { select: { id: true, name: true } },
-      },
+        assignee: { select: { id: true, name: true, email: true } },
+      }
     });
+    await this.logActivity(workspaceId, projectId, task.id, actorId, 'CREATED_TASK');
+    
+    return task;
   }
 
-  async update(taskId: string, dto: UpdateTaskDto) {
+  async findByProject(
+    projectId: string, 
+    filters?: { assigneeId?: string; status?: string }, 
+    pagination?: { page?: string; limit?: string }
+  ) {
+    const page = Number(pagination?.page) || 1;
+    const limit = Number(pagination?.limit) || 50;
+    const skip = (page - 1) * limit;
+    
+    const where: any = { projectId };
+    if (filters?.assigneeId) where.assigneeId = filters.assigneeId;
+    if (filters?.status) where.status = filters.status;
+    
+    const [data, total] = await Promise.all([
+      this.prisma.task.findMany({
+        where,
+        skip,
+        take: limit,
+        include: { assignee: { select: { id: true, name: true, email: true } } },
+        orderBy: { createdAt: 'desc' }
+      }),
+      this.prisma.task.count({ where })
+    ]);
+    
+    return { data, meta: { total, page, limit } };
+  }
+
+  async update(taskId: string, actorId: string, dto: UpdateTaskDto) {
     const updatedTask = await this.prisma.task.update({
       where: { id: taskId },
       data: {
@@ -51,9 +79,13 @@ export class TasksService {
       },
       include: {
         assignee: { select: { id: true, name: true, email: true } },
+        project: { select: { workspaceId: true } }
       },
     });
+
+    await this.logActivity(updatedTask.project.workspaceId, updatedTask.projectId, updatedTask.id, actorId, 'UPDATED_TASK');
     this.eventsGateway.broadcastTaskUpdate(updatedTask.projectId, updatedTask);
+    
     return updatedTask;
   }
 }

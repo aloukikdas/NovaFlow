@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Param, Post, UseGuards, Query } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -28,17 +28,28 @@ export class TasksController {
   }
 
   @Get()
-  async findAll(@Param('projectId') projectId: string) {
-    const tasks = await this.tasksService.findByProject(projectId);
-    return { success: true, data: tasks };
+  async findAll(
+    @Param('projectId') projectId: string,
+    @Query('assigneeId') assigneeId?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.tasksService.findByProject(
+      projectId, 
+      { assigneeId, status }, 
+      { page, limit }
+    );
+    return { success: true, ...result };
   }
 
   @Patch(':taskId')
   async update(
     @Param('taskId') taskId: string,
+    @CurrentUser() user: any,
     @Body() updateTaskDto: UpdateTaskDto,
   ) {
-    const task = await this.tasksService.update(taskId, updateTaskDto);
+    const task = await this.tasksService.update(taskId, user.sub, updateTaskDto);
     return { success: true, data: task };
   }
 }

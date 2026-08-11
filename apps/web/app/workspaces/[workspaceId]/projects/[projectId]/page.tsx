@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "../../../../../lib/api";
 import { io } from "socket.io-client";
 import ReactMarkdown from 'react-markdown';
+import UserMenu from "../../../../components/UserMenu";
 
 export default function ProjectTaskBoard({ 
   params 
@@ -30,21 +31,24 @@ export default function ProjectTaskBoard({
   const [activities, setActivities] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     const fetchTasks = async () => {
       try {
         const queryParams = filterAssignee ? `?assigneeId=${filterAssignee}` : "";
-        const [tasksRes, membersRes, activitiesRes, notifRes] = await Promise.all([
+        const [tasksRes, membersRes, activitiesRes, notifRes, meRes] = await Promise.all([
           apiClient(`/workspaces/${workspaceId}/projects/${projectId}/tasks${queryParams}`),
           apiClient(`/workspaces/${workspaceId}/members`),
           apiClient(`/workspaces/${workspaceId}/projects/${projectId}/activities`),
-          apiClient(`/notifications`)
+          apiClient(`/notifications`),
+          apiClient(`/auth/me`)
         ]);
         setTasks(tasksRes.data);
         setMembers(membersRes.data);
         setActivities(activitiesRes.data);
         setNotifications(notifRes.data);
+        setCurrentUser(meRes.data);
       } catch (err: any) {
         setError(err.message);
         if (err.message === "Unauthorized" || err.message === "Authentication token is missing") {
@@ -59,25 +63,36 @@ export default function ProjectTaskBoard({
   }, [workspaceId, projectId, router, filterAssignee]);
 
   useEffect(() => {
-    if (!projectId) return;
-    
+    if (!projectId || !currentUser) return; 
     const socket = io("http://localhost:4000", {
       withCredentials: true,
     });
     socket.on("connect", () => {
-      console.log("Connected to WebSocket");
       socket.emit("project:join", projectId);
     });
     socket.on("task:updated", (updatedTask: any) => {
-      console.log("Real-time update received!", updatedTask);
       setTasks((currentTasks) => 
         currentTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t))
       );
     });
+    socket.on("comment:new", (newComment: any) => {
+      setComments((prev) => {
+        if (prev.some(c => c.id === newComment.id)) return prev;
+        return [...prev, newComment];
+      });
+    });
+    socket.on("notification:new", (notif: any) => {
+      if (notif.userId === currentUser.id) {
+        setNotifications((prev) => {
+          if (prev.some(n => n.id === notif.id)) return prev;
+          return [notif, ...prev];
+        });
+      }
+    });
     return () => {
       socket.disconnect();
     };
-  }, [projectId]);
+  }, [projectId, currentUser]);
 
   const handleMarkNotificationRead = async (id: string) => {
     try {
@@ -268,6 +283,8 @@ export default function ProjectTaskBoard({
           >
             + New Task
           </button>
+        <UserMenu />
+
         </div>
       </nav>
 

@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { Role } from '@prisma/client';
@@ -95,5 +95,33 @@ export class WorkspacesService {
       update: { token, expiresAt, role },
       create: { workspaceId, email, role, token, expiresAt },
     });
+  }
+
+  async getPendingInvitations(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return [];
+    return this.prisma.workspaceInvitation.findMany({
+      where: { email: user.email },
+      include: { workspace: { select: { name: true } } },
+    });
+  }
+
+  async acceptInvitation(token: string, userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const invite = await this.prisma.workspaceInvitation.findUnique({ where: { token } });
+    if (!invite) throw new NotFoundException('Invitation not found');
+    if (invite.email !== user?.email) throw new ForbiddenException('This invite belongs to a different email');
+    if (invite.expiresAt < new Date()) throw new BadRequestException('Invitation has expired');
+    await this.prisma.workspaceMember.create({
+      data: {
+        workspaceId: invite.workspaceId,
+        userId: userId,
+        role: invite.role,
+      }
+    });
+    await this.prisma.workspaceInvitation.delete({
+      where: { id: invite.id }
+    });
+    return { success: true };
   }
 }

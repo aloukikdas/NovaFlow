@@ -12,11 +12,12 @@ export class CommentsController {
 
   @Post()
   async create(
+    @Param('projectId') projectId: string,
     @Param('taskId') taskId: string,
     @CurrentUser() user: any,
     @Body() createCommentDto: CreateCommentDto,
   ) {
-    const comment = await this.commentsService.create(taskId, user.sub, createCommentDto);
+    const comment = await this.commentsService.create(projectId, taskId, user.sub, createCommentDto);
     return { success: true, data: comment };
   }
 

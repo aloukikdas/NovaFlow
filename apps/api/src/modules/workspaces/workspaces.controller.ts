@@ -31,6 +31,18 @@ export class WorkspacesController {
     return { success: true, data: workspaces };
   }
 
+  @Get('invitations/pending')
+  async getPendingInvitations(@CurrentUser() user: any) {
+    const invites = await this.workspacesService.getPendingInvitations(user.sub);
+    return { success: true, data: invites };
+  }
+
+  @Post('invitations/:token/accept')
+  async acceptInvitation(@Param('token') token: string, @CurrentUser() user: any) {
+    await this.workspacesService.acceptInvitation(token, user.sub);
+    return { success: true };
+  }
+
   @UseGuards(WorkspaceMemberGuard)
   @Get(':workspaceId')
   async getWorkspaceById(@Param('workspaceId') workspaceId: string) {

@@ -13,4 +13,12 @@ export class EventsGateway {
   broadcastTaskUpdate(projectId: string, task: any) {
     this.server.to(`project:${projectId}`).emit('task:updated', task);
   }
+
+  broadcastComment(projectId: string, comment: any) {
+    this.server.to(projectId).emit('comment:new', comment);
+  }
+
+  broadcastNotification(projectId: string, notification: any) {
+    this.server.to(projectId).emit('notification:new', notification);
+  }
 }

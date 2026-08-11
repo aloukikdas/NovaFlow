@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "../../../lib/api";
 import toast from "react-hot-toast";
+import UserMenu from "../../components/UserMenu";
 
 export default function WorkspacePage({ params }: { params: Promise<{ workspaceId: string }> }) {
   const router = useRouter();
@@ -100,6 +101,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
         >
           Team Members &rarr;
         </button>
+        <UserMenu />
       </nav>
 
       {/* Main Content */}

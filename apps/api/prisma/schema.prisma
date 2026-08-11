@@ -18,6 +18,7 @@ model User {
   assignedTasks    Task[]            @relation("TaskAssignee")
   authoredComments Comment[]
   activities ActivityEvent[]
+  notifications Notification[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -141,15 +142,15 @@ model Task {
 model Comment {
   id        String   @id @default(uuid())
   content   String   @db.Text
-  
   taskId    String
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  
   authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-
+  parentId  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
 
   @@map("comments")
 }
@@ -210,4 +211,15 @@ model ActivityEvent {
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   task        Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   actor       User      @relation(fields: [actorId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  content   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

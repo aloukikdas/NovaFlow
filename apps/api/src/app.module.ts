@@ -11,6 +11,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { GatewaysModule } from './gateways/gateways.module';
+import { NotificationsModule } from './modules/notifications/notifications.module'
 
 @Module({
   imports: [
@@ -21,7 +22,8 @@ import { GatewaysModule } from './gateways/gateways.module';
     ProjectsModule, 
     TasksModule, 
     CommentsModule,
-    GatewaysModule
+    GatewaysModule,
+    NotificationsModule
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

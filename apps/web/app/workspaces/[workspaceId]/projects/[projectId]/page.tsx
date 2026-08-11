@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "../../../../../lib/api";
 import { io } from "socket.io-client";
+import ReactMarkdown from 'react-markdown';
 
 export default function ProjectTaskBoard({ 
   params 
@@ -24,19 +25,26 @@ export default function ProjectTaskBoard({
   const [newTaskPriority, setNewTaskPriority] = useState("MEDIUM");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newTaskAssignee, setNewTaskAssignee] = useState("");
-  const [viewMode, setViewMode] = useState<"BOARD" | "LIST">("BOARD");
+  const [viewMode, setViewMode] = useState<"BOARD" | "LIST" | "ACTIVITY">("BOARD");
   const [filterAssignee, setFilterAssignee] = useState("");
+  const [activities, setActivities] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   useEffect(() => {
     const fetchTasks = async () => {
       try {
         const queryParams = filterAssignee ? `?assigneeId=${filterAssignee}` : "";
-        const [tasksRes, membersRes] = await Promise.all([
+        const [tasksRes, membersRes, activitiesRes, notifRes] = await Promise.all([
           apiClient(`/workspaces/${workspaceId}/projects/${projectId}/tasks${queryParams}`),
-          apiClient(`/workspaces/${workspaceId}/members`)
+          apiClient(`/workspaces/${workspaceId}/members`),
+          apiClient(`/workspaces/${workspaceId}/projects/${projectId}/activities`),
+          apiClient(`/notifications`)
         ]);
         setTasks(tasksRes.data);
         setMembers(membersRes.data);
+        setActivities(activitiesRes.data);
+        setNotifications(notifRes.data);
       } catch (err: any) {
         setError(err.message);
         if (err.message === "Unauthorized" || err.message === "Authentication token is missing") {
@@ -70,6 +78,16 @@ export default function ProjectTaskBoard({
       socket.disconnect();
     };
   }, [projectId]);
+
+  const handleMarkNotificationRead = async (id: string) => {
+    try {
+      await apiClient(`/notifications/${id}/read`, { method: "PATCH" });
+      setNotifications(notifications.filter(n => n.id !== id));
+      if (notifications.length === 1) setIsNotificationsOpen(false);
+    } catch (err) {
+      console.error("Failed to mark notification read", err);
+    }
+  };
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,6 +156,7 @@ export default function ProjectTaskBoard({
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [isPostingComment, setIsPostingComment] = useState(false);
   const handleOpenTask = async (task: any) => {
     setSelectedTask(task);
@@ -158,10 +177,14 @@ export default function ProjectTaskBoard({
     try {
       const response = await apiClient(`/workspaces/${workspaceId}/projects/${projectId}/tasks/${selectedTask.id}/comments`, {
         method: "POST",
-        body: JSON.stringify({ content: newComment }),
+        body: JSON.stringify({ 
+          content: newComment,
+          parentId: replyingTo || undefined
+        }),
       });
       setComments([...comments, response.data]);
       setNewComment("");
+      setReplyingTo(null);
     } catch (err: any) {
       alert(`Failed to post comment: ${err.message}`);
     } finally {
@@ -196,12 +219,56 @@ export default function ProjectTaskBoard({
           <div className="h-4 w-px bg-gray-300"></div>
           <h1 className="text-lg font-bold text-gray-900">Project Board</h1>
         </div>
-        <button
-            onClick={() => setIsNewTaskModalOpen(true)} 
-            className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
-        >
-          + New Task
-        </button>
+        
+        <div className="flex items-center gap-4">
+          {/* Notification Bell */}
+          <div className="relative">
+            <button 
+              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              className="p-2 text-gray-400 hover:text-indigo-600 transition-colors relative"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {notifications.length > 0 && (
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+              )}
+            </button>
+
+            {/* Notification Dropdown */}
+            {isNotificationsOpen && (
+              <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                <div className="p-3 border-b border-gray-100 bg-gray-50/50">
+                  <h3 className="text-sm font-bold text-gray-900">Notifications</h3>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="p-4 text-sm text-gray-500 text-center">You're all caught up!</p>
+                  ) : (
+                    notifications.map(notif => (
+                      <div key={notif.id} className="p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors flex justify-between items-start gap-3">
+                        <div>
+                          <p className="text-sm text-gray-800">{notif.content}</p>
+                          <span className="text-[10px] text-gray-400 uppercase tracking-wider">{notif.type.replace('_', ' ')}</span>
+                        </div>
+                        <button onClick={() => handleMarkNotificationRead(notif.id)} className="text-indigo-600 hover:text-indigo-800 text-xs font-medium shrink-0">
+                          Mark Read
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button
+              onClick={() => setIsNewTaskModalOpen(true)} 
+              className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+          >
+            + New Task
+          </button>
+        </div>
       </nav>
 
       <div className="bg-white border-b border-gray-200 px-8 py-3 flex items-center justify-between shrink-0">
@@ -231,6 +298,12 @@ export default function ProjectTaskBoard({
             className={`px-3 py-1 text-xs font-bold rounded-md ${viewMode === "LIST" ? "bg-white shadow-sm text-indigo-700" : "text-gray-500 hover:text-gray-700"}`}
           >
             List View
+          </button>
+          <button 
+            onClick={() => setViewMode("ACTIVITY")}
+            className={`px-3 py-1 text-xs font-bold rounded-md ${viewMode === "ACTIVITY" ? "bg-white shadow-sm text-indigo-700" : "text-gray-500 hover:text-gray-700"}`}
+          >
+            Activity
           </button>
         </div>
       </div>
@@ -266,6 +339,38 @@ export default function ProjectTaskBoard({
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      ) : viewMode === "ACTIVITY" ? (
+        <div className="flex-1 overflow-y-auto p-8 bg-gray-50">
+          <div className="max-w-3xl mx-auto">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Project History</h2>
+            <div className="space-y-6">
+              {activities.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No activity recorded yet.</p>
+              ) : (
+                activities.map((event) => (
+                  <div key={event.id} className="flex gap-4 items-start">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0 mt-1">
+                      {event.actor.name.charAt(0)}
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex-1">
+                      <p className="text-sm text-gray-800">
+                        <span className="font-bold">{event.actor.name}</span> 
+                        {event.action === "CREATED_TASK" && " created the task "}
+                        {event.action === "UPDATED_TASK" && " updated the task "}
+                        {/* Fallback for other actions */}
+                        {event.action !== "CREATED_TASK" && event.action !== "UPDATED_TASK" && ` performed ${event.action} on `}
+                        <span className="font-bold text-indigo-600">{event.task?.title || "a task"}</span>
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(event.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 
@@ -461,6 +566,7 @@ export default function ProjectTaskBoard({
                 </div>
               </div>
 
+              {/* Comments Section */}
               <div className="flex-1 flex flex-col">
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Activity & Comments</h3>
                 
@@ -468,20 +574,46 @@ export default function ProjectTaskBoard({
                   {comments.length === 0 ? (
                     <p className="text-sm text-gray-400 text-center py-4">No comments yet. Start the conversation!</p>
                   ) : (
-                    comments.map(comment => (
-                      <div key={comment.id} className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0 text-sm">
-                          {comment.author?.name?.charAt(0) || '?'}
-                        </div>
-                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 w-full">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm font-bold text-gray-900">{comment.author?.name}</span>
-                            <span className="text-xs text-gray-400">
-                              {new Date(comment.createdAt).toLocaleDateString()} {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
+                    comments.filter(c => !c.parentId).map(comment => (
+                      <div key={comment.id} className="flex flex-col gap-2">
+                        {/* Parent Comment */}
+                        <div className="flex gap-3">
+                          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0 text-sm">
+                            {comment.author?.name?.charAt(0) || '?'}
                           </div>
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.content}</p>
+                          <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 w-full">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-sm font-bold text-gray-900">{comment.author?.name}</span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs text-gray-400">
+                                  {new Date(comment.createdAt).toLocaleDateString()} {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <button onClick={() => setReplyingTo(comment.id)} className="text-xs font-bold text-indigo-600 hover:text-indigo-800">Reply</button>
+                              </div>
+                            </div>
+                            <div className="text-sm text-gray-700 prose prose-sm max-w-none">
+                              {/* MARKDOWN RENDERER */}
+                              <ReactMarkdown>{comment.content}</ReactMarkdown>
+                            </div>
+                          </div>
                         </div>
+
+                        {/* Nested Child Comments (Replies) */}
+                        {comments.filter(reply => reply.parentId === comment.id).map(reply => (
+                          <div key={reply.id} className="flex gap-3 ml-11"> {/* ml-11 indents the reply! */}
+                            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 font-bold shrink-0 text-[10px]">
+                              {reply.author?.name?.charAt(0) || '?'}
+                            </div>
+                            <div className="bg-white rounded-lg p-3 border border-gray-100 w-full shadow-sm">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-bold text-gray-900">{reply.author?.name}</span>
+                              </div>
+                              <div className="text-xs text-gray-700 prose prose-sm max-w-none">
+                                <ReactMarkdown>{reply.content}</ReactMarkdown>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     ))
                   )}
@@ -489,19 +621,25 @@ export default function ProjectTaskBoard({
               </div>
             </div>
 
-            <div className="p-4 border-t border-gray-100 bg-gray-50 shrink-0">
+            {/* Comment Input Box */}
+            <div className="p-4 border-t border-gray-100 bg-gray-50 shrink-0 flex flex-col gap-2">
+              {replyingTo && (
+                <div className="flex justify-between items-center bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-md text-xs font-bold">
+                  <span>Replying to a comment...</span>
+                  <button onClick={() => setReplyingTo(null)} className="hover:text-indigo-900">✕ Cancel</button>
+                </div>
+              )}
               <form onSubmit={handlePostComment} className="flex gap-3">
-                <input
-                  type="text"
+                <textarea
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Ask a question or post an update..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  placeholder="Use **bold**, *italics*, or @Name to mention someone..."
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-none h-10 min-h-10"
                 />
                 <button
                   type="submit"
                   disabled={!newComment.trim() || isPostingComment}
-                  className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-full hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                  className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
                 >
                   Send
                 </button>

@@ -84,6 +84,15 @@ export class TasksService {
     });
 
     await this.logActivity(updatedTask.project.workspaceId, updatedTask.projectId, updatedTask.id, actorId, 'UPDATED_TASK');
+    if (dto.assigneeId && dto.assigneeId !== actorId) {
+      await this.prisma.notification.create({
+        data: {
+          userId: dto.assigneeId,
+          type: 'TASK_ASSIGNED',
+          content: `You were assigned to a new task: ${updatedTask.title}`
+        }
+      });
+    }
     this.eventsGateway.broadcastTaskUpdate(updatedTask.projectId, updatedTask);
     
     return updatedTask;

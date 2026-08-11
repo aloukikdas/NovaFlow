@@ -29,4 +29,10 @@ export class ProjectsController {
     const projects = await this.projectsService.findByWorkspace(workspaceId);
     return { success: true, data: projects };
   }
+
+  @Get(':projectId/activities')
+  async getActivityTimeline(@Param('projectId') projectId: string) {
+    const activities = await this.projectsService.getActivityTimeline(projectId);
+    return { success: true, data: activities };
+  }
 }
